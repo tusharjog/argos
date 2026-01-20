@@ -41,6 +41,7 @@ ICON_COLOR_PANDAS = '#FB9A99'
 ICON_COLOR_PILLOW = '#FF40FF'
 ICON_COLOR_SCIPY = ICON_COLOR_NUMPY
 ICON_COLOR_JSON = '#880088'
+ICON_COLOR_ZARR = '#E377C2'
 
 
 
@@ -195,6 +196,11 @@ class RtiRegistry(BaseRegistry):
                        'argos.repo.rtiplugins.exdir.ExdirFileRti',
                        iconColor=ICON_COLOR_EXDIR,
                        globs='*.exdir'),
+
+            RtiRegItem('Zarr file',
+                       'argos.repo.rtiplugins.zarrio.ZarrFileRti',
+                       iconColor=ICON_COLOR_ZARR,
+                       globs='*.zarr'),
 
             RtiRegItem('NetCDF file',
                        'argos.repo.rtiplugins.ncdf.NcdfFileRti',
