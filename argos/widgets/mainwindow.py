@@ -38,7 +38,7 @@ from argos.info import DEBUGGING, PROJECT_NAME, PROFILING, EXIT_CODE_RESTART
 from argos.inspector.abstract import AbstractInspector, UpdateReason
 from argos.inspector.errormsg import ErrorMsgInspector
 from argos.inspector.selectionpane import InspectorSelectionPane
-from argos.qt import Qt, QUrl, QtCore, QtGui, QtWidgets, QtSignal, QtSlot
+from argos.qt import Qt, QUrl, QtCore, QtGui, QtWidgets, QtSignal, QtSlot, QtSvg
 from argos.qt.misc import getWidgetGeom, getWidgetState
 from argos.reg.basereg import nameToIdentifier
 from argos.reg.dialog import PluginsDialog
@@ -52,6 +52,8 @@ from argos.utils.misc import stringToIdentifier
 from argos.utils.moduleinfo import versionStrToTuple
 from argos.widgets.aboutdialog import AboutDialog
 from argos.widgets.testwalkdialog import TestWalkDialog
+from argos.widgets.exportimagedialog import ExportImageDialog
+from argos.widgets.exportdatadialog import ExportDataDialog
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +87,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self._profiler = cProfile.Profile()
 
         self.testWalkDialog = TestWalkDialog(mainWindow=self, parent=self)  # don't show yet
+        self.exportImageDialog = ExportImageDialog(mainWindow=self, parent=self)  # don't show yet
+        self.exportDataDialog = ExportDataDialog(mainWindow=self, parent=self)  # don't show yet
 
         self._collector = None
         self._inspector = ErrorMsgInspector(
@@ -131,6 +135,8 @@ class MainWindow(QtWidgets.QMainWindow):
         logger.debug("Finalizing: {}".format(self))
 
         self.testWalkDialog.finalize()
+        self.exportImageDialog.finalize()
+        self.exportDataDialog.finalize()
 
         # Disconnect signals
         self.collector.sigContentsChanged.disconnect(self.collectorContentsChanged)
@@ -255,6 +261,18 @@ class MainWindow(QtWidgets.QMainWindow):
         self.myTestAction.triggered.connect(self.myTest)
         self.addAction(self.myTestAction)
 
+        self.exportImageAction = QtWidgets.QAction("Export Plot...", self)
+        self.exportImageAction.setToolTip("Export current plot to PNG, SVG, or TIFF")
+        self.exportImageAction.setShortcut("Ctrl+E")
+        self.exportImageAction.triggered.connect(self.showExportImageDialog)
+        self.addAction(self.exportImageAction)
+
+        self.exportDataAction = QtWidgets.QAction("Export Data...", self)
+        self.exportDataAction.setToolTip("Export current data to CSV, NumPy, HDF5, or Zarr")
+        self.exportDataAction.setShortcut("Ctrl+Shift+E")
+        self.exportDataAction.triggered.connect(self.showExportDataDialog)
+        self.addAction(self.exportDataAction)
+
 
     def __setupMenus(self):
         """ Sets up the main menu.
@@ -292,6 +310,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.openRecentMenu.aboutToShow.connect(self._repopulateOpenRecentMenu)
 
         fileMenu.addSeparator()
+        fileMenu.addAction(self.exportImageAction)
+        fileMenu.addAction(self.exportDataAction)
 
         fileMenu.addSeparator()
         fileMenu.addAction("E&xit", self.argosApplication.quit, 'Ctrl+Q')
@@ -307,6 +327,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.viewMenu.addSeparator()
         self.panelsMenu = self.viewMenu.addMenu("&Panels")
         self.tableHeadersMenu = self.viewMenu.addMenu("&Table Headers")
+        self.viewMenu.addSeparator()
 
         self.viewMenu.addSeparator()
         self.viewMenu.addAction(self.showTestWalkDialogAction)
@@ -1044,6 +1065,17 @@ class MainWindow(QtWidgets.QMainWindow):
         self.testWalkDialog.show()
         self.testWalkDialog.raise_()
 
+    def showExportImageDialog(self):
+        """ Shows the export image dialog box
+        """
+        self.exportImageDialog.show()
+        self.exportImageDialog.raise_()
+
+    def showExportDataDialog(self):
+        """ Shows the export data dialog box
+        """
+        self.exportDataDialog.show()
+        self.exportDataDialog.raise_()
 
     @QtSlot()
     def myTest(self):

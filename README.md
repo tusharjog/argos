@@ -39,6 +39,9 @@ First install PyQt5 with `pip`, then install Argos.
 
 After that, install the optional dependencies with `pip install <package>`.
 
+For convenience, you can install Argos with Qt and all optional dependencies in one command like so:
+
+    %> pip install argos[pyqt,all-formats]
 
 #### Installing Argos with Anaconda
 
@@ -49,6 +52,22 @@ Argos is available at the conda-forge channel. To install it type:
 
 After that, install the optional dependencies with `conda install <package>` (or
 `pip install <package>` for exdir).
+
+
+#### Installing Argos from Source
+
+To install Argos from a local git clone, first clone the repository:
+
+    %> git clone https://github.com/titusjan/argos.git
+    %> cd argos
+
+Then install using pip. For a regular installation:
+
+    %> pip install .
+
+For development/editable mode (changes to the source code are reflected immediately without reinstalling):
+
+    %> pip install -e .
 
 
 ### Starting Argos
