@@ -29,7 +29,6 @@ from argos.utils.misc import stringToIdentifier
 logger = logging.getLogger(__name__)
 
 
-QCOLOR_REGULAR = QtGui.QColor('black')
 QCOLOR_NOT_IMPORTED = QtGui.QColor('grey')
 QCOLOR_ERROR = QtGui.QColor('red')
 
@@ -290,7 +289,6 @@ class BaseRegistryModel(BaseTableModel):
         super(BaseRegistryModel, self).__init__(store, parent)
         checkType(store, BaseRegistry)
 
-        self.regularBrush = QtGui.QBrush(QCOLOR_REGULAR)
         self.notImportedBrush = QtGui.QBrush(QCOLOR_NOT_IMPORTED)
         self.errorBrush = QtGui.QBrush(QCOLOR_ERROR)
 
@@ -307,7 +305,7 @@ class BaseRegistryModel(BaseTableModel):
             if item.successfullyImported is None:
                 return self.notImportedBrush
             elif item.successfullyImported:
-                return self.regularBrush
+                return None  # Use system default text color (works with dark mode)
             else:
                 return self.errorBrush
         else:
