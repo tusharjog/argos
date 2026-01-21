@@ -48,15 +48,19 @@ ICON_COLOR_ZARR = '#E377C2'
 class RtiRegItem(BaseRegItem):
     """ Class to keep track of a registered Repo Tree Item.
     """
-    FIELDS  = BaseRegItem.FIELDS[:1] + ['iconColor', 'globs'] + BaseRegItem.FIELDS[1:]
-    TYPES   = BaseRegItem.TYPES[:1] + [RegType.ColorStr, RegType.String] + BaseRegItem.TYPES[1:]
-    LABELS  = BaseRegItem.LABELS[:1] + ['Icon Color', 'Globs'] + BaseRegItem.LABELS[1:]
-    STRETCH = BaseRegItem.STRETCH[:1] + [False, True] + BaseRegItem.STRETCH[1:]
+    FIELDS  = BaseRegItem.FIELDS[:1] + ['iconColor', 'globs', 'isDirectoryBased'] + BaseRegItem.FIELDS[1:]
+    TYPES   = BaseRegItem.TYPES[:1] + [RegType.ColorStr, RegType.String, RegType.String] + BaseRegItem.TYPES[1:]
+    LABELS  = BaseRegItem.LABELS[:1] + ['Icon Color', 'Globs', 'Directory'] + BaseRegItem.LABELS[1:]
+    STRETCH = BaseRegItem.STRETCH[:1] + [False, True, False] + BaseRegItem.STRETCH[1:]
 
     COL_DECORATION = 0  # Display Icon in the main column
 
-    def __init__(self, name='', absClassName='', pythonPath='', iconColor=ICON_COLOR_UNDEF, globs=''):
+    def __init__(self, name='', absClassName='', pythonPath='', iconColor=ICON_COLOR_UNDEF, globs='',
+                 isDirectoryBased=False):
         """ Constructor. See the ClassRegItem class doc string for the parameter help.
+
+            :param isDirectoryBased: If True, this plugin opens directories instead of files
+                (e.g., Zarr and Exdir stores are directories).
         """
         super(RtiRegItem, self).__init__(name=name, absClassName=absClassName, pythonPath=pythonPath)
         checkType(globs, str)
@@ -65,6 +69,7 @@ class RtiRegItem(BaseRegItem):
 
         self._data['iconColor'] = iconColor
         self._data['globs'] = globs
+        self._data['isDirectoryBased'] = isDirectoryBased
 
     def __str__(self):
         return "<RtiRegItem: {}>".format(self.name)
@@ -74,6 +79,12 @@ class RtiRegItem(BaseRegItem):
         """ Icon color hex string.
         """
         return self._data['iconColor']
+
+    @property
+    def isDirectoryBased(self):
+        """ Returns True if this plugin opens directories instead of files.
+        """
+        return self._data.get('isDirectoryBased', False)
 
 
     @property
@@ -195,12 +206,14 @@ class RtiRegistry(BaseRegistry):
             RtiRegItem('Exdir file',
                        'argos.repo.rtiplugins.exdir.ExdirFileRti',
                        iconColor=ICON_COLOR_EXDIR,
-                       globs='*.exdir'),
+                       globs='*.exdir',
+                       isDirectoryBased=True),
 
             RtiRegItem('Zarr file',
                        'argos.repo.rtiplugins.zarrio.ZarrFileRti',
                        iconColor=ICON_COLOR_ZARR,
-                       globs='*.zarr'),
+                       globs='*.zarr',
+                       isDirectoryBased=True),
 
             RtiRegItem('NetCDF file',
                        'argos.repo.rtiplugins.ncdf.NcdfFileRti',

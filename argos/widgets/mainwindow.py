@@ -553,8 +553,13 @@ class MainWindow(QtWidgets.QMainWindow):
             def createTrigger():
                 "Function to create a closure with the regItem"
                 _rtiRegItem = rtiRegItem # keep reference in closure
+                # Use Directory mode for directory-based formats (e.g., Zarr, Exdir)
+                if hasattr(_rtiRegItem, 'isDirectoryBased') and _rtiRegItem.isDirectoryBased:
+                    _fileMode = QtWidgets.QFileDialog.Directory
+                else:
+                    _fileMode = QtWidgets.QFileDialog.ExistingFiles
                 return lambda: self.openFiles(rtiRegItem=_rtiRegItem,
-                                              fileMode = QtWidgets.QFileDialog.ExistingFiles,
+                                              fileMode = _fileMode,
                                               caption="Open {}".format(_rtiRegItem.name))
 
             action = QtWidgets.QAction("{}...".format(rtiRegItem.name), self,
