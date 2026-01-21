@@ -336,6 +336,11 @@ By checking the `cross hair` config option you can bring up two line plots to th
 figure (see the screen shot at the top). A horizontal and vertical line are drawn at the cursor
 position and the plots will contain a cross-section of the values along those lines.
 
+You can freeze the cross-hair at its current position by pressing **F**. This keeps the cross-hair
+lines and cross-section plots fixed, allowing you to examine specific data points without the
+display updating as you move the mouse. Press **Shift+F** to unfreeze the cross-hair and resume
+following the cursor.
+
 #### Table Inspector
 
 This inspector is useful for examining the exact values of your data. You can change the size of
