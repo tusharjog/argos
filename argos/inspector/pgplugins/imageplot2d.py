@@ -39,7 +39,7 @@ from argos.inspector.pgplugins.pgctis import (
     PgColorMapCti, PgColorLegendCti, PgColorLegendLabelCti, PgShowHistCti,
     PgShowDragLinesCti, setXYAxesAutoRangeOn, PgPlotDataItemCti)
 from argos.inspector.pgplugins.pgplotitem import ArgosPgPlotItem
-from argos.qt import Qt, QtCore, QtGui, QtSlot
+from argos.qt import Qt, QtCore, QtGui, QtWidgets, QtSlot
 
 from argos.utils.cls import arrayHasRealNumbers, checkType, isAnArray, toString
 from argos.utils.cls import arrayKindLabel
@@ -384,6 +384,18 @@ class PgImagePlot2d(AbstractInspector):
         # I did not use the SignalProxy because I did not see any difference.
         self.imagePlotItem.scene().sigMouseMoved.connect(self.mouseMoved)
 
+        # Crosshair freeze state - when frozen, crosshair position doesn't update with mouse
+        self.crosshairFrozen = False
+
+        # Keyboard shortcuts for freeze/unfreeze crosshair
+        self.freezeCrosshairShortcut = QtWidgets.QShortcut(
+            QtGui.QKeySequence("F"), self.contentsWidget)
+        self.freezeCrosshairShortcut.activated.connect(self.freezeCrosshair)
+
+        self.unfreezeCrosshairShortcut = QtWidgets.QShortcut(
+            QtGui.QKeySequence("Shift+F"), self.contentsWidget)
+        self.unfreezeCrosshairShortcut.activated.connect(self.unfreezeCrosshair)
+
 
     def finalize(self):
         """ Is called before destruction. Can be used to clean-up resources.
@@ -393,6 +405,26 @@ class PgImagePlot2d(AbstractInspector):
         self.imagePlotItem.scene().sigMouseMoved.disconnect(self.mouseMoved)
         self.imagePlotItem.close()
         self.graphicsLayoutWidget.close()
+
+
+    def freezeCrosshair(self):
+        """ Freeze the crosshair at its current position.
+
+            When frozen, the crosshair lines and cross-section plots will not update
+            as the mouse moves, allowing you to examine specific data points.
+        """
+        self.crosshairFrozen = True
+        self.sigShowMessage.emit("Crosshair frozen (press Shift+F to unfreeze)")
+        logger.debug("Crosshair frozen at row={}, col={}".format(
+            self.crossPlotRow, self.crossPlotCol))
+
+
+    def unfreezeCrosshair(self):
+        """ Unfreeze the crosshair so it follows the mouse again.
+        """
+        self.crosshairFrozen = False
+        self.sigShowMessage.emit("Crosshair unfrozen")
+        logger.debug("Crosshair unfrozen")
 
 
     @classmethod
@@ -562,6 +594,10 @@ class PgImagePlot2d(AbstractInspector):
         """ Updates the probe text with the values under the cursor.
             Draws a vertical line and a symbol at the position of the probe.
         """
+        # Skip updates when crosshair is frozen
+        if self.crosshairFrozen:
+            return
+
         try:
             checkType(viewPos, QtCore.QPointF)
             show_data_point = False # shows the data point as a circle in the cross hair plots
