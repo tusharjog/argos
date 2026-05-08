@@ -389,11 +389,13 @@ class PgImagePlot2d(AbstractInspector):
 
         # Keyboard shortcuts for freeze/unfreeze crosshair
         self.freezeCrosshairShortcut = QtWidgets.QShortcut(
-            QtGui.QKeySequence("F"), self.contentsWidget)
+            QtGui.QKeySequence("F"), self.contentsWidget,
+            context=Qt.WidgetWithChildrenShortcut)
         self.freezeCrosshairShortcut.activated.connect(self.freezeCrosshair)
 
         self.unfreezeCrosshairShortcut = QtWidgets.QShortcut(
-            QtGui.QKeySequence("Shift+F"), self.contentsWidget)
+            QtGui.QKeySequence("Shift+F"), self.contentsWidget,
+            context=Qt.WidgetWithChildrenShortcut)
         self.unfreezeCrosshairShortcut.activated.connect(self.unfreezeCrosshair)
 
 
