@@ -379,6 +379,14 @@ def maskedEqual(array, missingValue):
         If the data is a structured array the mask is applied for every field (i.e. forming a
         logical-and). Otherwise, ma.masked_equal is called.
     """
+    # Object-dtype arrays (e.g. HDF5 variable-length arrays returned by h5py as ndarrays of
+    # ndarrays) cannot be element-wise compared to a scalar missing value: the per-element
+    # comparison yields an array, which ma.masked_equal can't reduce to a bool.
+    if isinstance(array, np.ndarray) and array.dtype == object:
+        if isinstance(array, ma.MaskedArray):
+            return array
+        return ma.MaskedArray(array)
+
     if arrayIsStructured(array):
         # Enforce the array to be masked
         if not isinstance(array, ma.MaskedArray):
@@ -405,6 +413,6 @@ def maskedEqual(array, missingValue):
         return array
     else:
         # masked_equal works with missing is None
-        result = ma.masked_equal(array, missingValue, copy=False)
+        result = ma.masked_equal(array, missingValue)
         checkType(result, ma.MaskedArray) # post-condition check
         return result

@@ -18,8 +18,12 @@
 """ Text widget inspector.
 """
 import logging
+import sys
+
+import numpy as np
 
 from argos.config.groupcti import MainGroupCti, GroupCti
+from argos.config.boolcti import BoolCti
 from argos.config.choicecti import ChoiceCti
 from argos.config.qtctis import FontCti
 from argos.inspector.abstract import AbstractInspector
@@ -51,6 +55,8 @@ class TextInspectorCti(MainGroupCti):
                                      'Boundaries or anywhere'],
                       configValues=[Opt.NoWrap, Opt.WordWrap, Opt.WrapAnywhere,
                                     Opt.WrapAtWordBoundaryOrAnywhere]))
+
+        self.showFullArrayCti = self.insertChild(BoolCti('show full array', False))
 
         self.encodingCti = self.insertChild(
             ChoiceCti('encoding', editable=True,
@@ -113,25 +119,59 @@ class TextInspector(AbstractInspector):
 
         self._clearContents()
 
-        slicedArray = self.collector.getSlicedArray()
+        if self.config.showFullArrayCti.configValue:
+            text = self._fullArrayText()
+        else:
+            text = self._scalarText()
 
-        if slicedArray is None:
+        if text is None:
             return
+
+        self.editor.setPlainText(text)
+        self.editor.setWordWrapMode(self.config.wordWrapCti.configValue)
+
+        # Update the editor font from the font config item (will call self.editor.setFont)
+        self.config.updateTarget()
+
+
+    def _scalarText(self):
+        """ Returns the text for the sliced scalar (the single element at the current spinbox
+            position). Returns None when there is nothing to draw.
+        """
+        slicedArray = self.collector.getSlicedArray()
+        if slicedArray is None:
+            return None
 
         # Sanity check, the slicedArray should be zero-dimensional. It can be used as a scalar.
         # In fact, using an index (e.g. slicedArray[0]) will raise an exception.
         assert slicedArray.data.ndim == 0, \
             "Expected zero-dimensional array. Got: {}".format(slicedArray.ndim)
 
-        # Valid data from here...
         maskedArr = slicedArray.asMaskedArray() # So that we call mask[()] for boolean masks
         slicedScalar = maskedArr[()] # Convert to Numpy scalar
         isMasked = maskedArr.mask[()]
 
-        text = toString(slicedScalar, masked=isMasked, maskFormat='--',
+        if isinstance(slicedScalar, np.ndarray):
+            # toString falls back to str() for ndarrays which abbreviates with "...". Use
+            # array2string with full threshold and line width for a complete representation.
+            return np.array2string(slicedScalar,
+                                   threshold=sys.maxsize,
+                                   max_line_width=sys.maxsize)
+        return toString(slicedScalar, masked=isMasked, maskFormat='--',
                         decodeBytesAs=self.config.encodingCti.configValue)
-        self.editor.setPlainText(text)
-        self.editor.setWordWrapMode(self.config.wordWrapCti.configValue)
 
-        # Update the editor font from the font config item (will call self.editor.setFont)
-        self.config.updateTarget()
+
+    def _fullArrayText(self):
+        """ Returns the text for the entire RTI array, ignoring spinbox positions. Returns None
+            when there is nothing to draw.
+        """
+        rti = self.collector.rti
+        if rti is None:
+            return None
+        if not rti.isSliceable or rti.nDims == 0:
+            return self._scalarText()
+
+        fullIndex = tuple(slice(None) for _ in range(rti.nDims))
+        fullData = rti[fullIndex]
+        arr = np.ma.getdata(fullData) if hasattr(fullData, 'mask') else np.asarray(fullData)
+        return np.array2string(arr, threshold=sys.maxsize, max_line_width=sys.maxsize)

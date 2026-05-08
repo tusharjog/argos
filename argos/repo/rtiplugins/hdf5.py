@@ -561,6 +561,43 @@ class H5pyDatasetRti(BaseRti):
         self._h5Dataset = h5Dataset
         self._isStructured = bool(self._h5Dataset.dtype.names)
         self._vecEnumCls = _create_enum_factory(h5Dataset)
+        self._vlenDtype = h5py.check_vlen_dtype(self._h5Dataset.dtype)
+        self._vlenInnerShape = None
+        self._vlenInnerShapeResolved = False
+
+
+    def _resolveVlenInnerShape(self):
+        """ For a variable-length array dataset, returns the inner element shape sampled from
+            the first entry, or None if not applicable (scalar dataset, non-numeric vlen, empty
+            dataset, or sampling failed). Cached after first call.
+
+            The result is used to expose the inner vlen dimension as a real array dimension,
+            so that inspectors (Table, Line/Image plots) see uniform N+k-D data instead of a
+            single object cell per entry. Entries with a different inner shape are padded to
+            this sampled shape in ``__getitem__``.
+        """
+        if self._vlenInnerShapeResolved:
+            return self._vlenInnerShape
+        self._vlenInnerShapeResolved = True
+
+        if self._vlenDtype is None or self._h5Dataset.shape == ():
+            return None
+        if not np.issubdtype(self._vlenDtype, np.number):
+            return None
+        if any(s == 0 for s in self._h5Dataset.shape):
+            return None
+
+        try:
+            first = self._h5Dataset[(0,) * len(self._h5Dataset.shape)]
+        except Exception as ex:
+            logger.warning("Could not sample vlen inner shape for {}: {}"
+                           .format(self._h5Dataset.name, ex))
+            return None
+
+        if not isinstance(first, np.ndarray):
+            return None
+        self._vlenInnerShape = first.shape
+        return first.shape
 
     @property
     def iconGlyph(self):
@@ -594,18 +631,83 @@ class H5pyDatasetRti(BaseRti):
             Passes the index through to the underlying dataset.
             Converts to a masked array using the missing data value as fill_value
         """
-        # Some old HDF5 files return bytes objects when containing string data. Convert to array.
-        array = np.array(self._h5Dataset.__getitem__(index))
+        innerShape = self._resolveVlenInnerShape()
+        if innerShape is not None:
+            array = self._vlenGetItem(index, innerShape)
+        elif h5py.check_vlen_dtype(self._h5Dataset.dtype) is not None:
+            # Vlen dataset where the inner dim is not exposed (scalar dataset, non-numeric
+            # vlen, etc.). Preserve the original per-entry ndim by wrapping fully-resolved
+            # results as a 0-d object array.
+            raw = self._h5Dataset.__getitem__(index)
+            expected_shape = np.empty(self._h5Dataset.shape, dtype=bool)[index].shape
+            if expected_shape == () and isinstance(raw, np.ndarray) and raw.dtype != object:
+                array = np.empty((), dtype=object)
+                array[()] = raw
+            else:
+                array = np.asarray(raw)
+        else:
+            # Some old HDF5 files return bytes objects for string data. Convert to array.
+            array = np.array(self._h5Dataset.__getitem__(index))
+
         if self._vecEnumCls is not None:
             array = self._vecEnumCls(array)
         return maskedEqual(array, self.missingDataValue)
+
+
+    def _vlenGetItem(self, index, innerShape):
+        """ Indexing path for variable-length array datasets whose inner dim is exposed.
+
+            Splits the incoming ``index`` (length == outer_ndim + len(innerShape)) into the
+            outer slice that selects vlen entries and the inner slice applied after stacking
+            the entries into a regular array. Non-uniform inner shapes are padded to
+            ``innerShape`` with the dataset's missing value (or zero) so the result is always
+            a regular numeric ndarray.
+        """
+        outerNDim = len(self._h5Dataset.shape)
+        if not isinstance(index, tuple):
+            index = (index,)
+        outerIndex = index[:outerNDim]
+        innerIndex = index[outerNDim:]
+
+        raw = self._h5Dataset[outerIndex] if outerIndex else self._h5Dataset[()]
+        expectedOuterShape = np.empty(self._h5Dataset.shape, dtype=bool)[outerIndex].shape
+
+        innerSize = int(np.prod(innerShape)) if innerShape else 1
+        fillValue = self.missingDataValue if self.missingDataValue is not None else 0
+
+        if expectedOuterShape == ():
+            # Single entry; raw is the inner ndarray itself.
+            stacked = np.asarray(raw).reshape(-1)
+            if stacked.size != innerSize:
+                padded = np.full(innerSize, fillValue, dtype=self._vlenDtype)
+                end = min(stacked.size, innerSize)
+                padded[:end] = stacked[:end]
+                stacked = padded
+            innerArr = stacked.reshape(innerShape)
+        else:
+            flat = np.asarray(raw).reshape(-1)
+            stacked = np.full((flat.size, innerSize), fillValue, dtype=self._vlenDtype)
+            for i, entry in enumerate(flat):
+                entry = np.asarray(entry).reshape(-1)
+                end = min(entry.size, innerSize)
+                stacked[i, :end] = entry[:end]
+            innerArr = stacked.reshape(expectedOuterShape + innerShape)
+
+        if innerIndex:
+            outerKeep = (slice(None),) * len(expectedOuterShape)
+            innerArr = innerArr[outerKeep + innerIndex]
+        return innerArr
 
 
     @property
     def arrayShape(self):
         """ Returns the shape of the underlying array.
         """
-        return self._h5Dataset.shape
+        base = self._h5Dataset.shape
+        inner = self._resolveVlenInnerShape()
+        if inner is not None:
+            return base + inner
+        return base
 
 
     @property
@@ -648,14 +750,22 @@ class H5pyDatasetRti(BaseRti):
     def dimensionNames(self):
         """ Returns a list with the dimension names of the underlying HDF-5 dataset.
         """
-        return dimNamesFromDataset(self._h5Dataset)  # TODO: cache?
+        names = dimNamesFromDataset(self._h5Dataset)  # TODO: cache?
+        inner = self._resolveVlenInnerShape()
+        if inner is not None:
+            names = list(names) + [SUB_DIM_TEMPLATE.format(i) for i in range(len(inner))]
+        return names
 
 
     @property
     def dimensionPaths(self):
         """ Returns a list with the full path names of the dimensions.
         """
-        return dimNamesFromDataset(self._h5Dataset, forToolTip=True)
+        paths = dimNamesFromDataset(self._h5Dataset, forToolTip=True)
+        inner = self._resolveVlenInnerShape()
+        if inner is not None:
+            paths = list(paths) + [SUB_DIM_TEMPLATE.format(i) for i in range(len(inner))]
+        return paths
 
 
     @property
